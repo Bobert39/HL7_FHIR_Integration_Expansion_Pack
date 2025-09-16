@@ -106,6 +106,104 @@ temp/
 *.css.map
 *.js.map
 
+# Additional cache directories
+**/cache/
+**/Cache/
+**/.cache/
+**/.Cache/
+cache/
+Cache/
+
+# Browser and application caches
+.mozilla/
+.firefox/
+.chrome/
+.chromium/
+.opera/
+.safari/
+.edge/
+
+# System and package manager caches
+.pip-cache/
+pip-cache/
+.npm-cache/
+npm-cache/
+.yarn-cache/
+yarn-cache/
+.pnpm-cache/
+pnpm-cache/
+.composer-cache/
+composer-cache/
+.rubygems/
+.bundle-cache/
+.cargo-cache/
+.go-cache/
+
+# Framework-specific caches
+.webpack-cache/
+.rollup-cache/
+.vite-cache/
+.turbo/
+.angular/cache/
+.svelte-kit/
+.nuxt/cache/
+.next/cache/
+
+# IDE and editor caches
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries/
+.idea/shelf/
+**/.vscode/settings.json
+
+# Runtime caches
+runtime-cache/
+**/runtime-cache/
+.runtime/
+
+# HTTP and request caches
+http-cache/
+**/http-cache/
+.http-cache/
+**/.http-cache/
+
+# Database and ORM caches
+.prisma/cache/
+.typeorm-cache/
+.sequelize-cache/
+.mongoose-cache/
+
+# Test and coverage caches
+.jest-cache/
+.mocha-cache/
+.karma-cache/
+.cypress/cache/
+.playwright/cache/
+
+# Build tool caches
+.gradle/caches/
+.maven/cache/
+.sbt/cache/
+.mill/cache/
+
+# Cloud provider caches
+.aws/cache/
+.gcp/cache/
+.azure/cache/
+
+# Language-specific caches
+.rustup/cache/
+.poetry/cache/
+.conda/cache/
+.pipenv/cache/
+.virtualenv/cache/
+
+# Temporary internet files
+Temporary Internet Files/
+**/Temporary Internet Files/
+
 # Database files
 *.db
 *.sqlite
@@ -277,3 +375,51 @@ profiles/
 
 # Keep GitHub templates
 !.github/
+
+# Claude and Cursor specific caches
+.claude/
+.cursor/
+.cursor-server/
+**/.claude/
+**/.cursor/
+**/.cursor-server/
+
+# Additional pip and Python caches
+.pip/
+pip/
+pip-cache/
+**/.pip/
+**/pip-cache/
+**/http-v2/
+**/.cache/pip/
+
+# Shell and bash caches
+.bash_history
+.zsh_history
+.fish_history
+**/.bash_history
+**/.zsh_history
+
+# More system caches
+.Trash/
+.Trashes/
+**/.Trash/
+**/.Trashes/
+
+# Additional temporary patterns
+**/tmp/
+**/temp/
+**/.tmp/
+**/.temp/
+**/Temp/
+**/TEMP/
+
+# Log files anywhere
+**/*.log
+**/logs/
+**/log/
+
+# Runtime and process files
+**/*.pid
+**/*.lock
+**/runtime/
