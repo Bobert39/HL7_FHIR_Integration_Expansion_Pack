@@ -1,0 +1,145 @@
+# FHIR Profile Template
+# Template for generating FHIR StructureDefinition profiles
+
+template:
+  id: fhir-profile-template
+  name: FHIR Profile Template
+  version: 1.0
+  format: yaml
+  output:
+    format: json
+    filename: "{{profile_name}}.StructureDefinition.json"
+    title: "{{profile_title}}"
+
+workflow:
+  mode: interactive
+  elicitation: advanced-elicitation
+
+agent_config:
+  primary_agent: fhir-interoperability-specialist
+  editable_sections:
+    - profile_metadata
+    - elements
+    - constraints
+    - extensions
+
+sections:
+  - id: profile_metadata
+    title: Profile Metadata
+    type: structured-data
+    instruction: Define the basic metadata for the FHIR profile
+    elicit: true
+    fields:
+      - name: profile_name
+        type: text
+        instruction: "Enter the profile name (e.g., 'PatientExtended')"
+        validation: "^[A-Z][a-zA-Z0-9]*$"
+      - name: profile_title
+        type: text
+        instruction: "Enter human-readable profile title"
+      - name: base_resource
+        type: choice
+        choices: ["Patient", "Observation", "Encounter", "Condition", "Procedure", "MedicationRequest", "DiagnosticReport", "Other"]
+        instruction: "Select the base FHIR resource this profile extends"
+      - name: description
+        type: long-text
+        instruction: "Provide detailed description of the profile's purpose and scope"
+      - name: publisher
+        type: text
+        instruction: "Organization or individual publishing this profile"
+        default: "{{organization_name}}"
+
+  - id: elements
+    title: Profile Elements
+    type: repeating-section
+    instruction: Define the elements and their constraints for this profile
+    elicit: true
+    fields:
+      - name: element_path
+        type: text
+        instruction: "FHIR element path (e.g., 'Patient.identifier')"
+      - name: cardinality_min
+        type: number
+        instruction: "Minimum cardinality (0 for optional, 1 for required)"
+        default: 0
+      - name: cardinality_max
+        type: text
+        instruction: "Maximum cardinality (number or '*' for unlimited)"
+        default: "1"
+      - name: data_type
+        type: text
+        instruction: "Data type constraint (if different from base)"
+      - name: constraint_description
+        type: long-text
+        instruction: "Description of why this constraint is needed clinically"
+
+  - id: constraints
+    title: Profile Constraints
+    type: repeating-section
+    instruction: Define additional constraints and business rules
+    elicit: true
+    fields:
+      - name: constraint_key
+        type: text
+        instruction: "Unique constraint identifier (e.g., 'ext-1')"
+      - name: constraint_severity
+        type: choice
+        choices: ["error", "warning"]
+        instruction: "Constraint severity level"
+        default: "error"
+      - name: constraint_expression
+        type: text
+        instruction: "FHIRPath expression for the constraint"
+      - name: constraint_description
+        type: long-text
+        instruction: "Human-readable description of the constraint"
+
+  - id: extensions
+    title: Profile Extensions
+    type: repeating-section
+    instruction: Define custom extensions needed for this profile
+    elicit: false
+    fields:
+      - name: extension_url
+        type: text
+        instruction: "Extension URL (canonical)"
+      - name: extension_name
+        type: text
+        instruction: "Extension name"
+      - name: extension_type
+        type: text
+        instruction: "Extension data type"
+      - name: extension_description
+        type: long-text
+        instruction: "Purpose and usage of this extension"
+
+structure:
+  resourceType: "StructureDefinition"
+  id: "{{profile_name}}"
+  url: "{{base_url}}/StructureDefinition/{{profile_name}}"
+  version: "1.0.0"
+  name: "{{profile_name}}"
+  title: "{{profile_title}}"
+  status: "draft"
+  experimental: true
+  date: "{{current_date}}"
+  publisher: "{{publisher}}"
+  description: "{{description}}"
+  fhirVersion: "4.0.1"
+  kind: "resource"
+  abstract: false
+  type: "{{base_resource}}"
+  baseDefinition: "http://hl7.org/fhir/StructureDefinition/{{base_resource}}"
+  derivation: "constraint"
+
+validation:
+  required_fields:
+    - profile_name
+    - profile_title
+    - base_resource
+    - description
+  validation_rules:
+    - "Profile name must be PascalCase"
+    - "Base resource must be valid FHIR R4 resource"
+    - "All element paths must be valid for the base resource"
+    - "Constraint expressions must be valid FHIRPath"

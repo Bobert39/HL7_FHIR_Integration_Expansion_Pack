@@ -1,0 +1,74 @@
+# Integration Research Workflow
+# Handles initial scoping, API analysis, and integration planning
+
+id: research-workflow
+name: "Healthcare System Integration Research Workflow"
+description: "Initial scoping, API testing, documentation, and integration planning workflow"
+version: "1.0"
+
+sequence:
+  - step: 1
+    name: "Initial Integration Scoping"
+    agent: healthcare-system-integration-analyst
+    task: initial-scoping
+    description: "Analyze target systems and define integration scope"
+    inputs:
+      - "Integration requirements"
+      - "Target system documentation"
+      - "Business objectives"
+    outputs:
+      - "Integration scope document"
+      - "System compatibility analysis"
+      - "Technical feasibility assessment"
+
+  - step: 2
+    name: "API Analysis and Testing"
+    agent: healthcare-system-integration-analyst
+    task: analyze-target-apis
+    description: "Analyze existing APIs and test integration capabilities"
+    inputs:
+      - "Integration scope document"
+      - "API documentation"
+      - "System access credentials"
+    outputs:
+      - "API analysis report"
+      - "Integration test results"
+      - "Data mapping specifications"
+
+  - step: 3
+    name: "Integration Architecture Design"
+    agent: healthcare-system-integration-analyst
+    task: design-integration-architecture
+    description: "Design comprehensive integration architecture and data flows"
+    inputs:
+      - "API analysis report"
+      - "Data mapping specifications"
+      - "Performance requirements"
+    outputs:
+      - "Integration architecture document"
+      - "Data flow diagrams"
+      - "Performance specifications"
+
+  - step: 4
+    name: "Integration Documentation"
+    agent: healthcare-system-integration-analyst
+    task: create-integration-documentation
+    description: "Create comprehensive integration documentation and guides"
+    inputs:
+      - "Integration architecture document"
+      - "API analysis report"
+      - "Implementation requirements"
+    outputs:
+      - "Integration partner profile"
+      - "Implementation guide"
+      - "Technical specifications"
+
+triggers:
+  - "New integration partner identified"
+  - "System integration analysis required"
+  - "Integration feasibility study needed"
+
+dependencies:
+  - agents: ["healthcare-system-integration-analyst"]
+  - tasks: ["initial-scoping"]
+  - templates: ["integration-partner-profile.tmpl.md", "implementation-guide.tmpl.md"]

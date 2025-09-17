@@ -1,0 +1,74 @@
+# Development and Validation Workflow
+# Handles code implementation, testing, and security validation
+
+id: development-workflow
+name: "FHIR Development & Validation Workflow"
+description: "Project scaffolding, code implementation, validation, and security review workflow"
+version: "1.0"
+
+sequence:
+  - step: 1
+    name: "Project Scaffolding"
+    agent: fhir-interoperability-specialist
+    task: setup-fhir-project
+    description: "Set up C#/.NET project structure with Firely SDK"
+    inputs:
+      - "FHIR profiles"
+      - "Technical requirements"
+      - "Architecture specifications"
+    outputs:
+      - "Project template"
+      - "Configuration files"
+      - "Initial code structure"
+
+  - step: 2
+    name: "FHIR Integration Implementation"
+    agent: fhir-interoperability-specialist
+    task: implement-fhir-integration
+    description: "Implement FHIR resource handling and API endpoints"
+    inputs:
+      - "Project template"
+      - "FHIR profiles"
+      - "API specifications"
+    outputs:
+      - "FHIR service implementation"
+      - "API endpoints"
+      - "Resource validation logic"
+
+  - step: 3
+    name: "Security Assessment"
+    agent: healthcare-it-security-analyst
+    task: conduct-security-assessment
+    description: "Perform comprehensive security review and testing"
+    inputs:
+      - "Implementation code"
+      - "API endpoints"
+      - "Security requirements"
+    outputs:
+      - "Security assessment report"
+      - "Vulnerability analysis"
+      - "Security recommendations"
+
+  - step: 4
+    name: "Integration Testing"
+    agent: fhir-interoperability-specialist
+    task: execute-integration-tests
+    description: "Run comprehensive integration and validation tests"
+    inputs:
+      - "Implementation code"
+      - "Test FHIR resources"
+      - "Security fixes"
+    outputs:
+      - "Test results"
+      - "Validation reports"
+      - "Performance metrics"
+
+triggers:
+  - "FHIR profiles approved for implementation"
+  - "Code development phase start"
+  - "Security review required"
+
+dependencies:
+  - agents: ["fhir-interoperability-specialist", "healthcare-it-security-analyst"]
+  - tasks: ["conduct-security-assessment", "create-fhir-profile"]
+  - templates: ["implementation-guide.tmpl.md"]

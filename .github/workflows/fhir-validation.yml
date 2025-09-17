@@ -1,0 +1,248 @@
+name: FHIR Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'tests/resources/**'
+      - 'src/**'
+      - '.github/workflows/fhir-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'tests/resources/**'
+      - 'src/**'
+      - '.github/workflows/fhir-validation.yml'
+  workflow_dispatch:
+    inputs:
+      validation_threshold:
+        description: 'Minimum pass rate threshold (0-100)'
+        required: false
+        default: '95.0'
+        type: string
+      include_detailed_reports:
+        description: 'Include detailed HTML and JSON reports'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  VALIDATION_OUTPUT_DIR: './artifacts/validation'
+
+jobs:
+  fhir-validation:
+    name: Validate FHIR Resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Cache .NET packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore src/FhirIntegrationService.sln
+
+    - name: Build solution
+      run: dotnet build src/FhirIntegrationService.sln --configuration Release --no-restore
+
+    - name: Create test resources directory
+      run: |
+        mkdir -p tests/resources
+        echo "Test resources directory created for validation"
+
+    - name: Check for FHIR resources
+      id: check-resources
+      run: |
+        if find tests/resources -name "*.json" -o -name "*.xml" | grep -q .; then
+          echo "has_resources=true" >> $GITHUB_OUTPUT
+          echo "Found FHIR resources for validation"
+          find tests/resources -name "*.json" -o -name "*.xml" | wc -l | xargs echo "Resource count:"
+        else
+          echo "has_resources=false" >> $GITHUB_OUTPUT
+          echo "No FHIR resources found - validation will be skipped"
+        fi
+
+    - name: Set validation parameters
+      id: validation-params
+      run: |
+        THRESHOLD="${{ github.event.inputs.validation_threshold }}"
+        if [ -z "$THRESHOLD" ]; then
+          THRESHOLD="95.0"
+        fi
+        echo "threshold=$THRESHOLD" >> $GITHUB_OUTPUT
+
+        DETAILED="${{ github.event.inputs.include_detailed_reports }}"
+        if [ -z "$DETAILED" ] || [ "$DETAILED" = "true" ]; then
+          echo "formats=html,json,csv,console" >> $GITHUB_OUTPUT
+        else
+          echo "formats=console" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create validation output directory
+      run: mkdir -p ${{ env.VALIDATION_OUTPUT_DIR }}
+
+    - name: Run FHIR validation
+      if: steps.check-resources.outputs.has_resources == 'true'
+      run: |
+        dotnet run --project src/FhirIntegrationService.ValidationSuite \
+          validate-directory \
+          --directory tests/resources \
+          --output ${{ env.VALIDATION_OUTPUT_DIR }} \
+          --pass-threshold ${{ steps.validation-params.outputs.threshold }} \
+          --formats ${{ steps.validation-params.outputs.formats }} \
+          --verbose
+      env:
+        DOTNET_ENVIRONMENT: Production
+
+    - name: Upload validation reports
+      if: always() && steps.check-resources.outputs.has_resources == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: fhir-validation-reports-${{ github.run_number }}
+        path: ${{ env.VALIDATION_OUTPUT_DIR }}
+        retention-days: 30
+
+    - name: Parse validation results
+      if: steps.check-resources.outputs.has_resources == 'true'
+      id: validation-results
+      run: |
+        # Check if JSON report exists and parse results
+        if [ -f "${{ env.VALIDATION_OUTPUT_DIR }}/validation-report-*.json" ]; then
+          JSON_FILE=$(ls ${{ env.VALIDATION_OUTPUT_DIR }}/validation-report-*.json | head -1)
+          TOTAL_RESOURCES=$(jq '.summary.totalResources' "$JSON_FILE")
+          PASSED_RESOURCES=$(jq '.summary.passedResources' "$JSON_FILE")
+          FAILED_RESOURCES=$(jq '.summary.failedResources' "$JSON_FILE")
+          PASS_RATE=$(jq '.summary.passRate' "$JSON_FILE")
+          OVERALL_SUCCESS=$(jq '.summary.overallSuccess' "$JSON_FILE")
+
+          echo "total_resources=$TOTAL_RESOURCES" >> $GITHUB_OUTPUT
+          echo "passed_resources=$PASSED_RESOURCES" >> $GITHUB_OUTPUT
+          echo "failed_resources=$FAILED_RESOURCES" >> $GITHUB_OUTPUT
+          echo "pass_rate=$PASS_RATE" >> $GITHUB_OUTPUT
+          echo "overall_success=$OVERALL_SUCCESS" >> $GITHUB_OUTPUT
+        else
+          echo "No JSON report found - validation may have failed"
+          echo "overall_success=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create validation summary
+      if: steps.check-resources.outputs.has_resources == 'true'
+      run: |
+        echo "## FHIR Validation Results 🏥" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.validation-results.outputs.overall_success }}" = "true" ]; then
+          echo "✅ **Validation PASSED**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Validation FAILED**" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Total Resources | ${{ steps.validation-results.outputs.total_resources }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Passed | ${{ steps.validation-results.outputs.passed_resources }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Failed | ${{ steps.validation-results.outputs.failed_resources }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Pass Rate | ${{ steps.validation-results.outputs.pass_rate }}% |" >> $GITHUB_STEP_SUMMARY
+        echo "| Threshold | ${{ steps.validation-params.outputs.threshold }}% |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ -d "${{ env.VALIDATION_OUTPUT_DIR }}" ]; then
+          echo "📊 **Generated Reports:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -la ${{ env.VALIDATION_OUTPUT_DIR }} | grep -E '\.(html|json|csv)$' | awk '{print "- " $9}' >> $GITHUB_STEP_SUMMARY || echo "- Console output only" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Comment PR with validation results
+      if: github.event_name == 'pull_request' && steps.check-resources.outputs.has_resources == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const success = ${{ steps.validation-results.outputs.overall_success }};
+          const totalResources = ${{ steps.validation-results.outputs.total_resources }};
+          const passedResources = ${{ steps.validation-results.outputs.passed_resources }};
+          const failedResources = ${{ steps.validation-results.outputs.failed_resources }};
+          const passRate = ${{ steps.validation-results.outputs.pass_rate }};
+          const threshold = ${{ steps.validation-params.outputs.threshold }};
+
+          const status = success ? '✅ PASSED' : '❌ FAILED';
+          const emoji = success ? '🎉' : '⚠️';
+
+          const body = `## FHIR Validation Results ${emoji}
+
+          **Status:** ${status}
+
+          | Metric | Value |
+          |--------|-------|
+          | Total Resources | ${totalResources} |
+          | Passed | ${passedResources} |
+          | Failed | ${failedResources} |
+          | Pass Rate | ${passRate}% |
+          | Required Threshold | ${threshold}% |
+
+          ${success ?
+            '🏥 All FHIR resources are valid and meet the quality threshold!' :
+            '🔍 Some FHIR resources failed validation. Please check the detailed reports in the workflow artifacts.'
+          }
+
+          📊 Detailed validation reports are available in the workflow artifacts.`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+
+    - name: Skip validation notification
+      if: steps.check-resources.outputs.has_resources == 'false'
+      run: |
+        echo "## FHIR Validation Results 🏥" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "ℹ️ **No FHIR resources found for validation**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Add FHIR resource files (.json or .xml) to the `tests/resources/` directory to enable validation." >> $GITHUB_STEP_SUMMARY
+
+    - name: Fail job if validation failed
+      if: steps.check-resources.outputs.has_resources == 'true' && steps.validation-results.outputs.overall_success == 'false'
+      run: |
+        echo "FHIR validation failed to meet the required threshold"
+        exit 1
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: fhir-validation
+    if: always()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: 'src/'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'

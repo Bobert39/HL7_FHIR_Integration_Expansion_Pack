@@ -1,0 +1,60 @@
+# Specification & Profiling Workflow
+# Handles clinical requirements gathering and FHIR profile creation
+
+id: specification-workflow
+name: "FHIR Specification & Profiling Workflow"
+description: "Clinical requirements definition, FHIR profile creation, publication, and clinical review workflow"
+version: "1.0"
+
+sequence:
+  - step: 1
+    name: "Clinical Requirements Documentation"
+    agent: clinical-informaticist
+    task: document-clinical-requirements
+    description: "Gather and document clinical workflow requirements and data needs"
+    inputs:
+      - "Clinical workflow documentation"
+      - "Stakeholder interviews"
+      - "Existing system analysis"
+    outputs:
+      - "Clinical requirements document"
+      - "Data flow diagrams"
+      - "Workflow specifications"
+
+  - step: 2
+    name: "FHIR Profile Creation"
+    agent: fhir-interoperability-specialist
+    task: create-fhir-profile
+    description: "Create FHIR profiles based on clinical requirements"
+    inputs:
+      - "Clinical requirements document"
+      - "FHIR R4 specification"
+      - "Existing FHIR profiles"
+    outputs:
+      - "FHIR StructureDefinition files"
+      - "Profile documentation"
+      - "Implementation examples"
+
+  - step: 3
+    name: "Clinical Review and Validation"
+    agent: clinical-informaticist
+    task: validate-clinical-requirements
+    description: "Review FHIR profiles against clinical requirements"
+    inputs:
+      - "FHIR StructureDefinition files"
+      - "Clinical requirements document"
+      - "Implementation examples"
+    outputs:
+      - "Clinical validation report"
+      - "Approved FHIR profiles"
+      - "Implementation guidance"
+
+triggers:
+  - "New clinical integration requirement"
+  - "FHIR profile creation request"
+  - "Clinical workflow analysis needed"
+
+dependencies:
+  - agents: ["clinical-informaticist", "fhir-interoperability-specialist"]
+  - tasks: ["document-clinical-requirements", "create-fhir-profile"]
+  - templates: ["implementation-guide.tmpl.md", "fhir-profile.tmpl.yaml"]
