@@ -1,0 +1,186 @@
+# BMad Framework Expansion Pack Configuration
+# HL7 FHIR Expansion Pack
+
+metadata:
+  name: "HL7 FHIR Expansion Pack"
+  version: "1.0.0"
+  type: "expansion-pack"
+  description: "Comprehensive expansion pack for HL7 FHIR workflows, clinical data interoperability, and healthcare system integration"
+  author: "BMad Framework"
+  license: "MIT"
+  created: "2025-01-19"
+  updated: "2025-01-19"
+
+# Expansion Pack Identification
+expansion_pack:
+  id: "hl7-fhir"
+  category: "healthcare-integration"
+  domain: "healthcare"
+  subdomain: "interoperability"
+
+# Target Industries & Use Cases
+target:
+  industries:
+    - "Healthcare"
+    - "Medical Technology"
+    - "Health Information Systems"
+    - "Electronic Health Records"
+  use_cases:
+    - "HL7 FHIR profile development"
+    - "Clinical data integration"
+    - "Healthcare system interoperability"
+    - "FHIR resource validation"
+    - "Medical data exchange"
+    - "EHR integration"
+    - "Clinical workflow automation"
+
+# Dependencies & Requirements
+requirements:
+  bmad_core_version: ">=2.0.0"
+  frameworks:
+    - "BMad Core"
+  tools:
+    - "FHIR Forge"
+    - "Simplifier.net"
+    - "HL7 FHIR Validator"
+  languages:
+    - "C#"
+    - "JSON"
+    - "YAML"
+    - "Markdown"
+
+# Agents Provided by this Expansion Pack
+agents:
+  clinical-informaticist:
+    name: "Dr. Sarah Chen"
+    title: "Clinical Informaticist"
+    icon: "🏥"
+    description: "Clinical workflow analysis and FHIR requirements documentation"
+    specialties:
+      - "Clinical requirements analysis"
+      - "Healthcare workflow modeling"
+      - "FHIR resource mapping"
+      - "Medical terminology standards"
+
+  fhir-interoperability-specialist:
+    name: "Alex Rodriguez"
+    title: "FHIR Interoperability Specialist"
+    icon: "🔗"
+    description: "FHIR profile development and interoperability engineering"
+    specialties:
+      - "FHIR profile creation"
+      - "Interoperability standards"
+      - "Resource validation"
+      - "Implementation guides"
+
+  healthcare-system-integration-analyst:
+    name: "Jordan Kim"
+    title: "Healthcare System Integration Analyst"
+    icon: "⚕️"
+    description: "Healthcare system integration and vendor analysis"
+    specialties:
+      - "System integration planning"
+      - "Vendor compatibility analysis"
+      - "Integration architecture"
+      - "Healthcare standards compliance"
+
+# Tasks Provided
+tasks:
+  clinical:
+    - "document-clinical-requirements"
+    - "clinical-workflow-analysis"
+    - "fhir-resource-mapping"
+
+  technical:
+    - "create-profile-in-forge"
+    - "publish-to-simplifier"
+    - "review-simplifier-profile"
+    - "technical-research"
+    - "document-quirks"
+    - "execute-validation-pipeline"
+    - "monitor-publication-health"
+    - "coordinate-external-access"
+
+  integration:
+    - "initial-scoping"
+    - "integration-partner-analysis"
+    - "system-compatibility-assessment"
+
+# Templates Provided
+templates:
+  clinical:
+    - "clinical-requirements.tmpl.md"
+    - "workflow-analysis.tmpl.md"
+
+  technical:
+    - "fhir-profile.tmpl.json"
+    - "implementation-guide.tmpl.md"
+    - "validation-report.tmpl.md"
+    - "forge-workflow-guide.tmpl.md"
+
+  integration:
+    - "integration-partner-profile.tmpl.md"
+    - "system-assessment.tmpl.md"
+
+# Workflows Provided
+workflows:
+  - "clinical-requirements-workflow"
+  - "fhir-profile-development-workflow"
+  - "integration-partner-onboarding-workflow"
+  - "implementation-guide-publication-workflow"
+
+# Demo Content
+demos:
+  included: true
+  location: "docs/demo"
+  examples:
+    - "Chemistry Panel FHIR Profile"
+    - "OpenEMR Integration Partner Profile"
+    - "Clinical Requirements Documentation"
+    - "FHIR Validation Pipeline"
+
+# Documentation Structure
+documentation:
+  structure:
+    epics: "docs/epics"
+    stories: "docs/stories"
+    demo: "docs/demo"
+    architecture: "docs/architecture"
+
+  key_files:
+    - "README.md"
+    - "docs/epics/epic-1-clinical-requirements-master.md"
+    - "docs/epics/epic-2-fhir-profile-development-master.md"
+    - "docs/epics/epic-3-integration-partner-onboarding-master.md"
+    - "docs/epics/epic-4-development-implementation-workflow-master.md"
+
+# Integration Points
+integration:
+  external_tools:
+    - name: "FHIR Forge"
+      purpose: "Profile development"
+      url: "https://forge.fire.ly"
+
+    - name: "Simplifier.net"
+      purpose: "Profile publishing and sharing"
+      url: "https://simplifier.net"
+
+    - name: "HL7 FHIR Validator"
+      purpose: "Resource validation"
+      url: "https://validator.fhir.org"
+
+# Installation & Setup
+installation:
+  setup_steps:
+    1: "Clone or download the expansion pack"
+    2: "Ensure BMad Core framework is installed"
+    3: "Review demo content in docs/demo directory"
+    4: "Configure external tool integrations as needed"
+    5: "Run initial validation pipeline"
+
+# Support & Maintenance
+support:
+  documentation: "Full documentation available in docs/ directory"
+  examples: "Demo implementations provided"
+  validation: "Automated validation pipeline included"
+  updates: "Regular updates with latest FHIR standards"

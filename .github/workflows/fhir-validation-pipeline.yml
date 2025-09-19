@@ -1,0 +1,363 @@
+name: FHIR Validation Pipeline
+
+on:
+  push:
+    branches: [ main, development ]
+    paths:
+      - 'src/**'
+      - 'docs/**'
+      - 'fhir-package/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'docs/**'
+      - 'fhir-package/**'
+  workflow_dispatch:
+    inputs:
+      validation_scope:
+        description: 'Validation scope (full, profiles, resources, content)'
+        required: false
+        default: 'full'
+      quality_gates:
+        description: 'Enable quality gate validation'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  VALIDATION_TIMEOUT: 300
+  ARTIFACTS_RETENTION_DAYS: 30
+
+jobs:
+  setup:
+    name: Pipeline Setup
+    runs-on: ubuntu-latest
+    outputs:
+      validation-scope: ${{ steps.determine-scope.outputs.scope }}
+      profile-count: ${{ steps.count-files.outputs.profiles }}
+      resource-count: ${{ steps.count-files.outputs.resources }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Determine validation scope
+      id: determine-scope
+      run: |
+        SCOPE="${{ github.event.inputs.validation_scope || 'full' }}"
+        echo "scope=$SCOPE" >> $GITHUB_OUTPUT
+        echo "🎯 Validation scope: $SCOPE"
+
+    - name: Count validation targets
+      id: count-files
+      run: |
+        PROFILES=$(find src/ -name "*.json" -o -name "*.xml" | wc -l)
+        RESOURCES=$(find docs/examples/ -name "*.json" -o -name "*.xml" 2>/dev/null | wc -l || echo "0")
+        echo "profiles=$PROFILES" >> $GITHUB_OUTPUT
+        echo "resources=$RESOURCES" >> $GITHUB_OUTPUT
+        echo "📊 Found $PROFILES profiles and $RESOURCES example resources"
+
+  fhir-validation:
+    name: FHIR Validation Pipeline
+    runs-on: ubuntu-latest
+    needs: setup
+    timeout-minutes: 15
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: |
+        echo "🔄 Restoring .NET dependencies..."
+        dotnet restore src/FhirIntegrationService.ValidationPipeline/
+
+    - name: Build validation pipeline
+      run: |
+        echo "🔨 Building validation pipeline..."
+        dotnet build src/FhirIntegrationService.ValidationPipeline/ \
+          --configuration Release \
+          --no-restore \
+          --verbosity minimal
+
+    - name: Create validation output directory
+      run: |
+        mkdir -p validation-output
+        echo "📁 Created validation output directory"
+
+    - name: Execute FHIR validation pipeline
+      id: validation
+      run: |
+        echo "🚀 Executing FHIR validation pipeline..."
+
+        # Prepare validation command
+        VALIDATION_COMMAND=(
+          dotnet run
+          --project src/FhirIntegrationService.ValidationPipeline
+          --configuration Release
+          --no-build
+          --
+          --profiles src/
+          --examples docs/examples/
+          --implementation-guide docs/implementation-guide/
+          --output validation-output/
+          --gate-config docs/qa/gates/5.3-implementation-guide-publication.yml
+          --timeout ${{ env.VALIDATION_TIMEOUT }}
+          --verbose
+        )
+
+        # Add conditional parameters
+        if [[ "${{ github.event.inputs.validation_scope }}" != "full" ]]; then
+          VALIDATION_COMMAND+=(--scope "${{ github.event.inputs.validation_scope }}")
+        fi
+
+        if [[ "${{ github.event.inputs.quality_gates }}" == "false" ]]; then
+          VALIDATION_COMMAND+=(--skip-quality-gates)
+        fi
+
+        # Execute validation with error handling
+        set +e
+        "${VALIDATION_COMMAND[@]}"
+        VALIDATION_EXIT_CODE=$?
+        set -e
+
+        echo "validation-exit-code=$VALIDATION_EXIT_CODE" >> $GITHUB_OUTPUT
+
+        if [[ $VALIDATION_EXIT_CODE -eq 0 ]]; then
+          echo "✅ Validation completed successfully"
+        else
+          echo "❌ Validation failed with exit code: $VALIDATION_EXIT_CODE"
+        fi
+
+        # Output validation summary
+        if [[ -f "validation-output/validation-report-latest.json" ]]; then
+          echo "📋 Validation Summary:"
+          jq -r '
+            "Overall Status: " + .overallStatus +
+            "\nProfiles Validated: " + (.technicalValidation.profileValidationResults | length | tostring) +
+            "\nResources Validated: " + (.resourceValidation.resourceValidationResults | length | tostring) +
+            "\nQuality Gate Compliance: " + (.qualityGateCompliance.overallCompliance | tostring)
+          ' validation-output/validation-report-latest.json
+        fi
+
+    - name: Check quality gates
+      if: github.event.inputs.quality_gates != 'false'
+      run: |
+        echo "🚦 Checking quality gates..."
+
+        if [[ -f "validation-output/validation-report-latest.json" ]]; then
+          # Extract quality gate results
+          OVERALL_COMPLIANCE=$(jq -r '.qualityGateCompliance.overallCompliance' validation-output/validation-report-latest.json)
+          BLOCKING_FAILURES=$(jq -r '.qualityGateCompliance.blockingFailures | length' validation-output/validation-report-latest.json)
+
+          echo "Quality Gate Compliance: $OVERALL_COMPLIANCE"
+          echo "Blocking Failures: $BLOCKING_FAILURES"
+
+          if [[ "$OVERALL_COMPLIANCE" == "false" ]] || [[ "$BLOCKING_FAILURES" -gt "0" ]]; then
+            echo "❌ Quality gates failed - blocking failures detected"
+
+            # Output detailed failure information
+            echo "🔍 Quality Gate Failures:"
+            jq -r '.qualityGateCompliance.blockingFailures[] |
+              "- " + .gateName + " (Score: " + (.score | tostring) + "%, Required: " + (.passThreshold | tostring) + "%)"' \
+              validation-output/validation-report-latest.json
+
+            exit 1
+          else
+            echo "✅ All quality gates passed"
+          fi
+        else
+          echo "⚠️ Validation report not found - cannot check quality gates"
+          exit 1
+        fi
+
+    - name: Generate validation artifacts
+      if: always()
+      run: |
+        echo "📦 Generating validation artifacts..."
+
+        # Create comprehensive artifact package
+        ARTIFACT_DIR="validation-artifacts-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$ARTIFACT_DIR"
+
+        # Copy validation reports
+        if [[ -d "validation-output" ]]; then
+          cp -r validation-output/* "$ARTIFACT_DIR/"
+        fi
+
+        # Create summary report
+        cat > "$ARTIFACT_DIR/validation-summary.md" << EOF
+        # FHIR Validation Pipeline Summary
+
+        **Execution Time**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+        **Repository**: ${{ github.repository }}
+        **Branch**: ${{ github.ref_name }}
+        **Commit**: ${{ github.sha }}
+        **Validation Scope**: ${{ needs.setup.outputs.validation-scope }}
+
+        ## Validation Targets
+        - **FHIR Profiles**: ${{ needs.setup.outputs.profile-count }}
+        - **Example Resources**: ${{ needs.setup.outputs.resource-count }}
+
+        ## Results
+        EOF
+
+        # Add results if validation report exists
+        if [[ -f "$ARTIFACT_DIR/validation-report-latest.json" ]]; then
+          jq -r '
+            "- **Overall Status**: " + .overallStatus +
+            "\n- **Execution Duration**: " + (.executionDuration // "N/A") +
+            "\n- **Quality Gate Compliance**: " + (.qualityGateCompliance.overallCompliance | tostring) +
+            "\n- **Total Issues**: " + (.metrics.totalValidationIssues | tostring) +
+            "\n- **Critical Issues**: " + (.metrics.criticalIssues | tostring) +
+            "\n- **Warning Issues**: " + (.metrics.warningIssues | tostring)
+          ' "$ARTIFACT_DIR/validation-report-latest.json" >> "$ARTIFACT_DIR/validation-summary.md"
+        fi
+
+        # Create artifact archive
+        tar -czf "validation-artifacts.tar.gz" "$ARTIFACT_DIR/"
+        echo "✅ Validation artifacts created: validation-artifacts.tar.gz"
+
+    - name: Upload validation artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: fhir-validation-artifacts
+        path: validation-artifacts.tar.gz
+        retention-days: ${{ env.ARTIFACTS_RETENTION_DAYS }}
+
+    - name: Upload validation reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: validation-reports
+        path: validation-output/
+        retention-days: ${{ env.ARTIFACTS_RETENTION_DAYS }}
+
+    - name: Comment PR with validation results
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = 'validation-output/validation-report-latest.json';
+
+          let comment = '## 🔍 FHIR Validation Pipeline Results\n\n';
+
+          if (fs.existsSync(path)) {
+            const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+            const statusEmoji = {
+              'Success': '✅',
+              'Warning': '⚠️',
+              'Error': '❌',
+              'Failed': '❌'
+            };
+
+            comment += `**Overall Status**: ${statusEmoji[report.overallStatus] || '❓'} ${report.overallStatus}\n`;
+            comment += `**Profiles Validated**: ${report.technicalValidation.profileValidationResults.length}\n`;
+            comment += `**Resources Validated**: ${report.resourceValidation.resourceValidationResults.length}\n`;
+            comment += `**Quality Gate Compliance**: ${report.qualityGateCompliance.overallCompliance ? '✅' : '❌'}\n`;
+            comment += `**Total Issues**: ${report.metrics.totalValidationIssues}\n`;
+            comment += `**Critical Issues**: ${report.metrics.criticalIssues}\n\n`;
+
+            if (report.qualityGateCompliance.blockingFailures.length > 0) {
+              comment += '### ❌ Blocking Quality Gate Failures\n\n';
+              report.qualityGateCompliance.blockingFailures.forEach(gate => {
+                comment += `- **${gate.gateName}**: ${gate.score.toFixed(1)}% (Required: ${gate.passThreshold}%)\n`;
+              });
+              comment += '\n';
+            }
+
+            if (report.recommendations.length > 0) {
+              comment += '### 💡 Recommendations\n\n';
+              const criticalRecs = report.recommendations.filter(r => r.priority === 'Critical').slice(0, 3);
+              criticalRecs.forEach(rec => {
+                comment += `- **${rec.title}**: ${rec.description}\n`;
+              });
+              if (report.recommendations.length > 3) {
+                comment += `\n*And ${report.recommendations.length - 3} more recommendations in the detailed report.*\n`;
+              }
+            }
+          } else {
+            comment += '❌ Validation report not available. Check the workflow logs for details.\n';
+          }
+
+          comment += '\n📊 [View detailed validation artifacts](../actions/runs/${{ github.run_id }})';
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Set validation status
+      if: always()
+      run: |
+        if [[ "${{ steps.validation.outputs.validation-exit-code }}" == "0" ]]; then
+          echo "🎉 FHIR validation pipeline completed successfully"
+        else
+          echo "💥 FHIR validation pipeline failed"
+          exit 1
+        fi
+
+  notify-stakeholders:
+    name: Notify Stakeholders
+    runs-on: ubuntu-latest
+    needs: [setup, fhir-validation]
+    if: failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')
+    steps:
+    - name: Send notification on failure
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const title = '🚨 FHIR Validation Pipeline Failed';
+          const body = `
+          The FHIR validation pipeline has failed on the ${context.ref.replace('refs/heads/', '')} branch.
+
+          **Repository**: ${context.repo.owner}/${context.repo.repo}
+          **Commit**: ${context.sha.substring(0, 7)}
+          **Workflow Run**: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+
+          Please review the validation results and address any issues before merging.
+          `;
+
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['validation-failure', 'urgent']
+          });
+
+  update-status-badge:
+    name: Update Status Badge
+    runs-on: ubuntu-latest
+    needs: fhir-validation
+    if: github.ref == 'refs/heads/main' && always()
+    steps:
+    - name: Update validation status badge
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const success = '${{ needs.fhir-validation.result }}' === 'success';
+          const badge = success ?
+            '![FHIR Validation](https://img.shields.io/badge/FHIR%20Validation-Passing-brightgreen)' :
+            '![FHIR Validation](https://img.shields.io/badge/FHIR%20Validation-Failing-red)';
+
+          console.log(`Validation status: ${success ? 'Passing' : 'Failing'}`);
+          // Additional badge update logic would go here
